@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: gogreen-cms
+    env: node
+    buildCommand: npm install --build-from-source
+    startCommand: node server.js
+    envVars:
+      - key: NODE_ENV
+        value: production

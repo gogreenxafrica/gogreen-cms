@@ -1,24 +1,213 @@
-{
-  "name": "gogreen-cms",
-  "version": "2.0.0",
-  "description": "Gogreen Exchange — Full CMS Backend",
-  "main": "server.js",
-  "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "dependencies": {
-    "bcryptjs": "^2.4.3",
-    "better-sqlite3": "^9.4.3",
-    "cors": "^2.8.5",
-    "dotenv": "^16.3.1",
-    "express": "^4.18.2",
-    "jsonwebtoken": "^9.0.2"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.2"
+const express = require('express');
+const router  = express.Router();
+const bcrypt  = require('bcryptjs');
+const jwt     = require('jsonwebtoken');
+const auth    = require('../middleware/auth');
+const { getDB } = require('../db/database');
+
+const SECRET = () => process.env.JWT_SECRET || 'gg-secret-change-me';
+
+// ── LOGIN ──
+router.post('/login', async (req, res) => {
+  const { username, password } = req.body;
+  if (!username || !password) return res.status(400).json({ error: 'Username and password required' });
+  const db   = getDB();
+  const user = db.prepare('SELECT * FROM admin_users WHERE username=?').get(username);
+  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+  const valid = await bcrypt.compare(password, user.password_hash);
+  if (!valid)  return res.status(401).json({ error: 'Invalid credentials' });
+  const token = jwt.sign({ id: user.id, username: user.username, role: 'admin' }, SECRET(), { expiresIn: '8h' });
+  res.json({ token, username: user.username });
+});
+
+// ── CHANGE PASSWORD ──
+router.post('/change-password', auth, async (req, res) => {
+  const { currentPassword, newPassword } = req.body;
+  if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Both passwords required' });
+  if (newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  const db   = getDB();
+  const user = db.prepare('SELECT * FROM admin_users WHERE id=?').get(req.admin.id);
+  const valid = await bcrypt.compare(currentPassword, user.password_hash);
+  if (!valid) return res.status(401).json({ error: 'Current password is wrong' });
+  const hash = await bcrypt.hash(newPassword, 12);
+  db.prepare('UPDATE admin_users SET password_hash=? WHERE id=?').run(hash, req.admin.id);
+  res.json({ success: true });
+});
+
+// ── SETTINGS: get all ──
+router.get('/settings', auth, (req, res) => {
+  const db = getDB();
+  const rows = db.prepare('SELECT * FROM settings ORDER BY group_name, key').all();
+  // Group them
+  const grouped = {};
+  rows.forEach(r => {
+    const g = r.group_name || 'general';
+    if (!grouped[g]) grouped[g] = [];
+    grouped[g].push(r);
+  });
+  res.json(grouped);
+});
+
+// ── SETTINGS: update one ──
+router.put('/settings/:key', auth, (req, res) => {
+  const { value } = req.body;
+  if (value === undefined) return res.status(400).json({ error: 'Value required' });
+  const db = getDB();
+  db.prepare('UPDATE settings SET value=?, updated_at=CURRENT_TIMESTAMP WHERE key=?').run(value, req.params.key);
+  res.json({ success: true, key: req.params.key, value });
+});
+
+// ── SETTINGS: batch update ──
+router.post('/settings/batch', auth, (req, res) => {
+  const { updates } = req.body; // { key: value, ... }
+  if (!updates) return res.status(400).json({ error: 'Updates object required' });
+  const db  = getDB();
+  const upd = db.prepare('UPDATE settings SET value=?, updated_at=CURRENT_TIMESTAMP WHERE key=?');
+  const updateMany = db.transaction(entries => {
+    for (const [key, value] of entries) upd.run(value, key);
+  });
+  updateMany(Object.entries(updates));
+  res.json({ success: true, updated: Object.keys(updates).length });
+});
+
+// ── REVIEWS: get all ──
+router.get('/reviews', auth, (req, res) => {
+  const db = getDB();
+  res.json(db.prepare('SELECT * FROM reviews ORDER BY sort_order').all());
+});
+
+// ── REVIEWS: create ──
+router.post('/reviews', auth, (req, res) => {
+  const { name, handle, platform, quote, source_url, initials } = req.body;
+  if (!name || !quote) return res.status(400).json({ error: 'Name and quote required' });
+  const db = getDB();
+  const maxOrder = db.prepare('SELECT MAX(sort_order) as m FROM reviews').get().m || 0;
+  const result = db.prepare(`
+    INSERT INTO reviews (name, handle, platform, quote, source_url, initials, sort_order)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(name, handle||'', platform||'', quote, source_url||'', initials||name.slice(0,2).toUpperCase(), maxOrder+1);
+  res.json({ success: true, id: result.lastInsertRowid });
+});
+
+// ── REVIEWS: update ──
+router.put('/reviews/:id', auth, (req, res) => {
+  const { name, handle, platform, quote, source_url, initials, active, sort_order } = req.body;
+  const db = getDB();
+  db.prepare(`
+    UPDATE reviews SET name=?, handle=?, platform=?, quote=?, source_url=?, initials=?, active=?, sort_order=?, updated_at=CURRENT_TIMESTAMP
+    WHERE id=?
+  `).run(name, handle, platform, quote, source_url, initials, active?1:0, sort_order, req.params.id);
+  res.json({ success: true });
+});
+
+// ── REVIEWS: delete ──
+router.delete('/reviews/:id', auth, (req, res) => {
+  getDB().prepare('DELETE FROM reviews WHERE id=?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ── FAQS: get all ──
+router.get('/faqs', auth, (req, res) => {
+  res.json(getDB().prepare('SELECT * FROM faqs ORDER BY sort_order').all());
+});
+
+// ── FAQS: create ──
+router.post('/faqs', auth, (req, res) => {
+  const { question, answer } = req.body;
+  if (!question || !answer) return res.status(400).json({ error: 'Question and answer required' });
+  const db = getDB();
+  const maxOrder = db.prepare('SELECT MAX(sort_order) as m FROM faqs').get().m || 0;
+  const result = db.prepare('INSERT INTO faqs (question, answer, sort_order) VALUES (?, ?, ?)')
+    .run(question, answer, maxOrder+1);
+  res.json({ success: true, id: result.lastInsertRowid });
+});
+
+// ── FAQS: update ──
+router.put('/faqs/:id', auth, (req, res) => {
+  const { question, answer, active, sort_order } = req.body;
+  getDB().prepare(`
+    UPDATE faqs SET question=?, answer=?, active=?, sort_order=?, updated_at=CURRENT_TIMESTAMP WHERE id=?
+  `).run(question, answer, active?1:0, sort_order, req.params.id);
+  res.json({ success: true });
+});
+
+// ── FAQS: delete ──
+router.delete('/faqs/:id', auth, (req, res) => {
+  getDB().prepare('DELETE FROM faqs WHERE id=?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ── SERVICES: get all ──
+router.get('/services', auth, (req, res) => {
+  res.json(getDB().prepare('SELECT * FROM services ORDER BY sort_order').all());
+});
+
+// ── SERVICES: update ──
+router.put('/services/:id', auth, (req, res) => {
+  const { name, description, wa_message, active, sort_order } = req.body;
+  getDB().prepare(`
+    UPDATE services SET name=?, description=?, wa_message=?, active=?, sort_order=?, updated_at=CURRENT_TIMESTAMP WHERE id=?
+  `).run(name, description, wa_message, active?1:0, sort_order, req.params.id);
+  res.json({ success: true });
+});
+
+// ── SERVICES: create ──
+router.post('/services', auth, (req, res) => {
+  const { name, description, icon, wa_message } = req.body;
+  if (!name) return res.status(400).json({ error: 'Name required' });
+  const db = getDB();
+  const maxOrder = db.prepare('SELECT MAX(sort_order) as m FROM services').get().m || 0;
+  const result = db.prepare('INSERT INTO services (name, description, icon, wa_message, sort_order) VALUES (?,?,?,?,?)')
+    .run(name, description||'', icon||'', wa_message||name, maxOrder+1);
+  res.json({ success: true, id: result.lastInsertRowid });
+});
+
+// ── SERVICES: delete ──
+router.delete('/services/:id', auth, (req, res) => {
+  getDB().prepare('DELETE FROM services WHERE id=?').run(req.params.id);
+  res.json({ success: true });
+});
+
+// ── AUTO RATE: get status ──
+router.get('/auto-rate', auth, (req, res) => {
+  const db  = getDB();
+  const get = key => db.prepare('SELECT value FROM settings WHERE key=?').get(key)?.value || '';
+  res.json({
+    enabled:      get('auto_enabled') === '1',
+    marketRate:   get('auto_market_rate'),
+    buySpread:    get('auto_buy_spread'),
+    sellSpread:   get('auto_sell_spread'),
+    lastFetched:  get('auto_last_fetched'),
+    status:       get('auto_scrape_status'),
+    buyRate:      get('buy_rate'),
+    sellRate:     get('sell_rate'),
+  });
+});
+
+// ── AUTO RATE: update spreads / toggle ──
+router.post('/auto-rate', auth, (req, res) => {
+  const { enabled, buySpread, sellSpread } = req.body;
+  const db  = getDB();
+  const upd = db.prepare('UPDATE settings SET value=?, updated_at=CURRENT_TIMESTAMP WHERE key=?');
+  const save = db.transaction(() => {
+    if (enabled !== undefined)   upd.run(enabled ? '1' : '0', 'auto_enabled');
+    if (buySpread  !== undefined) upd.run(String(buySpread),   'auto_buy_spread');
+    if (sellSpread !== undefined) upd.run(String(sellSpread),  'auto_sell_spread');
+  });
+  save();
+  res.json({ success: true });
+});
+
+// ── AUTO RATE: trigger manual fetch now ──
+router.post('/auto-rate/fetch-now', auth, async (req, res) => {
+  try {
+    const { scrapeAndUpdate } = require('../services/rateScraper');
+    const result = await scrapeAndUpdate();
+    if (result) res.json({ success: true, result: result });
+    else res.json({ success: false, error: 'Could not parse rate — check scraper status' });
+  } catch (e) {
+    res.status(500).json({ success: false, error: e.message });
   }
-}
+});
+
+module.exports = router;
