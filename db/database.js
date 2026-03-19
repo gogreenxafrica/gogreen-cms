@@ -7,7 +7,7 @@
 const fs     = require('fs');
 const path   = require('path');
 const bcrypt = require('bcryptjs');
-const { getBybitP2PRate } = require('./lib/bybit-p2p-rate');
+const { getBybitP2PRate } = require('./bybit-p2p-rate');
 const DATA_PATH = process.env.DB_PATH || path.join(__dirname, 'data.json');
 
 // ── Default data ──
