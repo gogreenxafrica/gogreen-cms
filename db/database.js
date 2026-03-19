@@ -2,12 +2,12 @@
  * Pure JSON file database — zero compilation, works on any host.
  * Data stored in db/data.json
  * 
- * NOW WITH AUTO RATE CRAWLER — fetches from ngnrates.com/black-market every 6 hours
+ * NOW WITH BYBIT P2P RATE ENGINE — fetches real rates every 6 hours
  */
 const fs     = require('fs');
 const path   = require('path');
 const bcrypt = require('bcryptjs');
-const https  = require('https');
+const { getBybitP2PRate } = require('./bybit-p2p-rate');
 
 const DATA_PATH = process.env.DB_PATH || path.join(__dirname, 'data.json');
 
@@ -89,107 +89,59 @@ function getDB() {
   return load();
 }
 
-// ── 🤖 MICRO BOT: CRAWL NGNRATES BLACK MARKET ──
-function crawlNGNRatesBlackMarket() {
+// ── 🤖 BYBIT P2P RATE ENGINE ──
+async function updateRatesFromBybit() {
   const data = load();
   
   // Check if auto rate is enabled
   if (data.settings.auto_enabled && data.settings.auto_enabled.value === '0') {
-    console.log('🤖 Auto rate disabled, skipping crawl');
+    console.log('🤖 Auto rate disabled, skipping Bybit update');
     return;
   }
   
-  console.log('🤖 Micro Bot: Fetching BDC USD rates from ngnrates.com/black-market...');
+  console.log('🤖 Bybit P2P: Fetching real-time USDT/NGN rates...');
   
   data.settings.auto_scrape_status.value = 'fetching';
   save(data);
   
-  https.get('https://www.ngnrates.com/black-market', (res) => {
-    let html = '';
+  try {
+    // Fetch rates from Bybit P2P (50k NGN typical trade amount)
+    const rateData = await getBybitP2PRate(50000);
     
-    res.on('data', (chunk) => {
-      html += chunk;
-    });
+    console.log('✅ Bybit P2P rates received');
+    console.log('📊 Market Buy Rate (baseline): ₦' + rateData.market_buy_rate);
+    console.log('📊 Market Sell Rate (reference): ₦' + rateData.market_sell_rate);
     
-    res.on('end', () => {
-      try {
-        console.log('✅ Page fetched successfully');
-        
-        // Extract BDC USD rates using improved regex
-        // The site structure may have rates in table format
-        // Pattern 1: Direct USD table row
-        let usdPattern = /<td[^>]*>\s*USD\s*<\/td>\s*<td[^>]*>\s*₦?\s*([\d,]+(?:\.\d{2})?)\s*<\/td>\s*<td[^>]*>\s*₦?\s*([\d,]+(?:\.\d{2})?)\s*<\/td>/i;
-        let match = html.match(usdPattern);
-        
-        // Pattern 2: Try alternative pattern with class/id selectors
-        if (!match) {
-          usdPattern = /USD.*?₦\s*([\d,]+(?:\.\d{2})?).*?₦\s*([\d,]+(?:\.\d{2})?)/i;
-          match = html.match(usdPattern);
-        }
-        
-        // Pattern 3: Try simplified pattern looking for rate numbers around USD
-        if (!match) {
-          const usdSection = html.match(/USD[\s\S]{0,300}?₦[\s,\d\.]+/i);
-          if (usdSection) {
-            const rates = usdSection[0].match(/₦\s*([\d,]+(?:\.\d{2})?)/g);
-            if (rates && rates.length >= 2) {
-              match = ['', rates[0].replace(/[₦\s]/g, ''), rates[1].replace(/[₦\s]/g, '')];
-            }
-          }
-        }
-        
-        let bdcBuyRate = 0;
-        let bdcSellRate = 0;
-        
-        if (match && match[1] && match[2]) {
-          bdcBuyRate = parseFloat(match[1].replace(/,/g, ''));
-          bdcSellRate = parseFloat(match[2].replace(/,/g, ''));
-        }
-        
-        console.log('📊 BDC USD Buy Rate (they buy from people):', bdcBuyRate);
-        console.log('📊 BDC USD Sell Rate (they sell to people):', bdcSellRate);
-        
-        if (bdcBuyRate > 0 && bdcSellRate > 0) {
-          // Apply margins
-          const buySpread = parseInt(data.settings.auto_buy_spread.value) || -30;
-          const sellSpread = parseInt(data.settings.auto_sell_spread.value) || 60;
-          
-          const ourBuyRate = Math.round(bdcBuyRate + buySpread);   // Their buy - 30
-          const ourSellRate = Math.round(bdcSellRate + sellSpread); // Their sell + 60
-          
-          console.log('💰 Our Buy Rate (we buy from customers):', ourBuyRate);
-          console.log('💰 Our Sell Rate (we sell to customers):', ourSellRate);
-          
-          // Update database
-          const freshData = load();
-          freshData.settings.buy_rate.value = String(ourBuyRate);
-          freshData.settings.sell_rate.value = String(ourSellRate);
-          freshData.settings.auto_market_rate.value = String(bdcBuyRate);
-          freshData.settings.auto_last_fetched.value = new Date().toISOString();
-          freshData.settings.auto_scrape_status.value = 'success';
-          
-          save(freshData);
-          console.log('✅ Rates updated in database!');
-        } else {
-          console.warn('⚠️ Could not extract valid rates');
-          console.log('📄 HTML snippet around USD:', html.substring(html.indexOf('USD'), html.indexOf('USD') + 500));
-          const freshData = load();
-          freshData.settings.auto_scrape_status.value = 'failed';
-          save(freshData);
-        }
-      } catch (err) {
-        console.error('❌ Parse error:', err.message);
-        const freshData = load();
-        freshData.settings.auto_scrape_status.value = 'error';
-        save(freshData);
-      }
-    });
-  }).on('error', (err) => {
-    console.error('❌ Fetch error:', err.message);
+    // Apply your spread settings
+    const buySpread = parseInt(data.settings.auto_buy_spread.value) || -30;
+    const sellSpread = parseInt(data.settings.auto_sell_spread.value) || 60;
+    
+    // Use market buy rate as baseline for both (consistent base)
+    const ourBuyRate = Math.round(rateData.market_buy_rate + buySpread);   // Market - 30
+    const ourSellRate = Math.round(rateData.market_buy_rate + sellSpread); // Market + 60
+    
+    console.log('💰 Our Buy Rate (we buy from customers): ₦' + ourBuyRate + ' (market ' + buySpread + ')');
+    console.log('💰 Our Sell Rate (we sell to customers): ₦' + ourSellRate + ' (market +' + sellSpread + ')');
+    console.log('📈 Our Spread: ₦' + (ourSellRate - ourBuyRate));
+    
+    // Update database
+    const freshData = load();
+    freshData.settings.buy_rate.value = String(ourBuyRate);
+    freshData.settings.sell_rate.value = String(ourSellRate);
+    freshData.settings.auto_market_rate.value = String(rateData.market_buy_rate);
+    freshData.settings.auto_last_fetched.value = rateData.timestamp;
+    freshData.settings.auto_scrape_status.value = 'success';
+    
+    save(freshData);
+    console.log('✅ Rates updated successfully from Bybit P2P!');
+    
+  } catch (err) {
+    console.error('❌ Bybit P2P update failed:', err.message);
+    
     const freshData = load();
     freshData.settings.auto_scrape_status.value = 'error';
     save(freshData);
-  });
+  }
 }
 
 // ── Init ──
@@ -218,16 +170,32 @@ async function initDB() {
   save(data);
   console.log('Database ready —', DATA_PATH);
   
-  // 🤖 Start micro bot
-  console.log('🚀 Micro Bot initialized - crawling every 6 hours');
+  // 🤖 Start Bybit P2P rate engine with random intervals
+  console.log('🚀 Bybit P2P Rate Engine initialized - updating every 2-5 minutes (random)');
   
-  // Run immediately after 10 seconds (give server time to start)
-  setTimeout(() => {
-    crawlNGNRatesBlackMarket();
+  /**
+   * Schedule next update with random interval between 2-5 minutes
+   */
+  function scheduleNextUpdate() {
+    // Random interval between 2 and 5 minutes (in milliseconds)
+    const minInterval = 2 * 60 * 1000;  // 2 minutes
+    const maxInterval = 5 * 60 * 1000;  // 5 minutes
+    const randomInterval = Math.floor(Math.random() * (maxInterval - minInterval + 1)) + minInterval;
+    
+    const nextUpdateMinutes = (randomInterval / 60000).toFixed(1);
+    console.log(`⏰ Next rate update in ${nextUpdateMinutes} minutes`);
+    
+    setTimeout(async () => {
+      await updateRatesFromBybit();
+      scheduleNextUpdate(); // Schedule the next one after this completes
+    }, randomInterval);
+  }
+  
+  // Run first update after 10 seconds (give server time to start)
+  setTimeout(async () => {
+    await updateRatesFromBybit();
+    scheduleNextUpdate(); // Start the random scheduling loop
   }, 10000);
-  
-  // Then run every 6 hours (21,600,000 ms)
-  setInterval(crawlNGNRatesBlackMarket, 21600000);
 }
 
 module.exports = { getDB, save, load, initDB };
