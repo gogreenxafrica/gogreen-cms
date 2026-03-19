@@ -1,50 +1,57 @@
+/**
+ * Pure JSON file database — zero compilation, works on any host.
+ * Data stored in db/data.json
+ * 
+ * NOW WITH AUTO RATE CRAWLER — fetches from ngnrates.com/black-market every 6 hours
+ */
 const fs     = require('fs');
 const path   = require('path');
 const bcrypt = require('bcryptjs');
+const https  = require('https');
 
 const DATA_PATH = process.env.DB_PATH || path.join(__dirname, 'data.json');
 
+// ── Default data ──
 const DEFAULT = {
   settings: {
-    buy_rate:           { value: '1388', label: 'We Buy Rate', group: 'rates' },
-    sell_rate:          { value: '1489', label: 'We Sell Rate', group: 'rates' },
-    wa_number:          { value: '2347010975329', label: 'WhatsApp Number', group: 'contact' },
-    ig_handle:          { value: 'gogreenxafrica', label: 'Instagram Handle', group: 'social' },
-    ig_backup:          { value: 'gogreenexchange', label: 'Instagram Backup', group: 'social' },
-    tiktok:             { value: 'gogreenxafrica', label: 'TikTok Handle', group: 'social' },
-    twitter:            { value: 'gogreenxafrica', label: 'Twitter/X Handle', group: 'social' },
-    hero_headline:      { value: 'Whatever Digital Money.', label: 'Hero Headline', group: 'hero' },
-    hero_subheading:    { value: 'Get Naira. Fast.', label: 'Hero Subheading', group: 'hero' },
-    hero_badge:         { value: 'Live & Trading 24/7', label: 'Hero Badge', group: 'hero' },
-    feat1_tag:          { value: 'Trust & Safety', label: 'Feature 1 Tag', group: 'features' },
-    feat1_title:        { value: 'CAC Registered & Trademarked', label: 'Feature 1 Title', group: 'features' },
-    feat1_body:         { value: 'CAC registered, trademarked. 50+ proofs on Instagram.', label: 'Feature 1 Body', group: 'features' },
-    feat2_tag:          { value: 'Speed', label: 'Feature 2 Tag', group: 'features' },
-    feat2_title:        { value: 'Instant Naira. No Delays.', label: 'Feature 2 Title', group: 'features' },
-    feat2_body:         { value: 'Once confirmed, e don enter your account. No stories.', label: 'Feature 2 Body', group: 'features' },
-    feat3_tag:          { value: 'Coverage', label: 'Feature 3 Tag', group: 'features' },
-    feat3_title:        { value: 'Any Currency. Any Country.', label: 'Feature 3 Title', group: 'features' },
-    feat3_body:         { value: 'EUR, USD, UK, Canada, India and more.', label: 'Feature 3 Body', group: 'features' },
-    cta_heading:        { value: 'Ready to trade?', label: 'CTA Heading', group: 'cta' },
-    footer_copy:        { value: '© 2026 Purplegreen Investment Limited', label: 'Footer Copyright', group: 'footer' },
-    auto_buy_spread:    { value: '-30', label: 'Buy Spread', group: 'automation' },
-    auto_sell_spread:   { value: '60', label: 'Sell Spread', group: 'automation' },
-    auto_market_rate:   { value: '0', label: 'Last Market Rate', group: 'automation' },
-    auto_last_fetched:  { value: '', label: 'Last Fetch Time', group: 'automation' },
-    auto_scrape_status: { value: 'idle', label: 'Scraper Status', group: 'automation' },
-    auto_enabled:       { value: '1', label: 'Auto Rate Enabled', group: 'automation' },
+    buy_rate:        { value: '1388',                          label: 'We Buy Rate',        group: 'rates' },
+    sell_rate:       { value: '1489',                          label: 'We Sell Rate',        group: 'rates' },
+    wa_number:       { value: '2347010975329',                 label: 'WhatsApp Number',     group: 'contact' },
+    ig_handle:       { value: 'gogreenxafrica',                label: 'Instagram Handle',    group: 'social' },
+    tiktok:          { value: 'gogreenxafrica',                label: 'TikTok Handle',       group: 'social' },
+    twitter:         { value: 'gogreenxafrica',                label: 'Twitter/X Handle',    group: 'social' },
+    hero_headline:   { value: 'Whatever Digital Money.',       label: 'Hero Headline',       group: 'hero' },
+    hero_subheading: { value: 'Get Naira. Fast.',              label: 'Hero Subheading',     group: 'hero' },
+    hero_badge:      { value: 'Live & Trading 24/7',           label: 'Hero Badge',          group: 'hero' },
+    feat1_tag:       { value: 'Trust & Safety',                label: 'Feature 1 Tag',       group: 'features' },
+    feat1_title:     { value: 'CAC Registered & Trademarked',  label: 'Feature 1 Title',     group: 'features' },
+    feat1_body:      { value: 'CAC registered, trademarked. 50+ proofs on Instagram.', label: 'Feature 1 Body', group: 'features' },
+    feat2_tag:       { value: 'Speed',                         label: 'Feature 2 Tag',       group: 'features' },
+    feat2_title:     { value: 'Instant Naira. No Delays.',     label: 'Feature 2 Title',     group: 'features' },
+    feat2_body:      { value: 'Once confirmed, e don enter your account. No stories.', label: 'Feature 2 Body', group: 'features' },
+    feat3_tag:       { value: 'Coverage',                      label: 'Feature 3 Tag',       group: 'features' },
+    feat3_title:     { value: 'Any Currency. Any Country.',    label: 'Feature 3 Title',     group: 'features' },
+    feat3_body:      { value: 'EUR, USD, UK, Canada, India and more.', label: 'Feature 3 Body', group: 'features' },
+    cta_heading:     { value: 'Ready to trade?',               label: 'CTA Heading',         group: 'cta' },
+    footer_copy:     { value: '© 2026 Purplegreen Investment Limited', label: 'Footer Copyright', group: 'footer' },
+    auto_buy_spread:    { value: '-30',  label: 'Buy Spread',         group: 'automation' },
+    auto_sell_spread:   { value: '60',   label: 'Sell Spread',        group: 'automation' },
+    auto_market_rate:   { value: '0',    label: 'Last Market Rate',   group: 'automation' },
+    auto_last_fetched:  { value: '',     label: 'Last Fetch Time',    group: 'automation' },
+    auto_scrape_status: { value: 'idle', label: 'Scraper Status',     group: 'automation' },
+    auto_enabled:       { value: '1',    label: 'Auto Rate Enabled',  group: 'automation' },
   },
   reviews: [
-    { id: 1, name: '@opeyemiiii_', handle: '@opeyemiiii_', platform: 'Instagram', quote: 'Tested and trusted. Emphasis on the fast.', source_url: 'https://www.instagram.com/', initials: 'OP', active: true, sort_order: 1 },
-    { id: 2, name: 'Niki Lauda', handle: 'Niki Lauda', platform: 'TikTok', quote: "Omoooo the most reliable vendor ever, never ever disappoints me in any form. I love y'all", source_url: 'https://vt.tiktok.com/', initials: 'NL', active: true, sort_order: 2 },
-    { id: 3, name: '@winnie_xcx', handle: '@winnie_xcx', platform: 'Instagram', quote: 'Seamless service, very impressive.', source_url: 'https://www.instagram.com/', initials: 'WX', active: true, sort_order: 3 },
+    { id: 1, name: '@opeyemiiii_', handle: '@opeyemiiii_', platform: 'Instagram', quote: 'Tested and trusted. Emphasis on the fast.', source_url: 'https://www.instagram.com/reel/DShQ3wrCClp?comment_id=17911295154146322&open_comments=true', initials: 'OP', active: true, sort_order: 1 },
+    { id: 2, name: 'Niki Lauda', handle: 'Niki Lauda', platform: 'TikTok', quote: "Omoooo the most reliable vendor ever, never ever disappoints me in any form. I love y'all", source_url: 'https://vt.tiktok.com/ZS9dy3hYJmKq8-W2yHb/', initials: 'NL', active: true, sort_order: 2 },
+    { id: 3, name: '@winnie_xcx', handle: '@winnie_xcx', platform: 'Instagram', quote: 'Seamless service, very impressive.', source_url: 'https://www.instagram.com/reel/DShP99GCEII?comment_id=18092244838973814&open_comments=true', initials: 'WX', active: true, sort_order: 3 },
   ],
   faqs: [
-    { id: 1, question: 'Is Gogreen legit?', answer: 'We are CAC-registered under Purplegreen Investment Limited. Check @gogreenxafrica on Instagram.', active: true, sort_order: 1 },
+    { id: 1, question: 'Is Gogreen legit?', answer: 'We are CAC-registered under Purplegreen Investment Limited. Check @gogreenxafrica on Instagram — 50+ real proofs.', active: true, sort_order: 1 },
     { id: 2, question: 'Do you buy BTC and crypto?', answer: 'Yes — BTC, USDT, ETH and more. Send asset type and amount on WhatsApp for a live rate.', active: true, sort_order: 2 },
     { id: 3, question: 'How fast is payment?', answer: 'Instant after confirmation. No delay, no story.', active: true, sort_order: 3 },
     { id: 4, question: 'Do you accept PayPal and digital wallets?', answer: 'Yes — PayPal, CashApp, Chime, Apple Pay, Venmo, GCash, Revolut, Skrill, Neteller and more.', active: true, sort_order: 4 },
-    { id: 5, question: 'Which countries do you cover?', answer: 'EUR/SEPA Instant, UK, US, Canada, Australia, Mexico, India and many more.', active: true, sort_order: 5 },
+    { id: 5, question: 'Which countries do you cover?', answer: 'EUR/SEPA, UK, US, Canada, Australia, Mexico, India and many more.', active: true, sort_order: 5 },
   ],
   services: [
     { id: 1, name: 'Crypto', description: 'USDT, USDC, SOL, BTC, ETH and more.', icon: 'crypto', wa_message: 'Crypto', active: true, sort_order: 1 },
@@ -58,37 +65,150 @@ const DEFAULT = {
   _nextId: { reviews: 4, faqs: 6, services: 7 }
 };
 
+// ── Load / save ──
 function load() {
   try {
-    if (fs.existsSync(DATA_PATH)) return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
-  } catch (e) { console.error('DB load error:', e.message); }
+    if (fs.existsSync(DATA_PATH)) {
+      return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
+    }
+  } catch (e) {
+    console.error('DB load error:', e.message);
+  }
   return JSON.parse(JSON.stringify(DEFAULT));
 }
 
 function save(data) {
-  try { fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2)); }
-  catch (e) { console.error('DB save error:', e.message); }
+  try {
+    fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error('DB save error:', e.message);
+  }
 }
 
-function getDB() { return load(); }
+function getDB() {
+  return load();
+}
 
+// ── 🤖 MICRO BOT: CRAWL NGNRATES BLACK MARKET ──
+function crawlNGNRatesBlackMarket() {
+  const data = load();
+  
+  // Check if auto rate is enabled
+  if (data.settings.auto_enabled && data.settings.auto_enabled.value === '0') {
+    console.log('🤖 Auto rate disabled, skipping crawl');
+    return;
+  }
+  
+  console.log('🤖 Micro Bot: Fetching BDC USD rates from ngnrates.com/black-market...');
+  
+  data.settings.auto_scrape_status.value = 'fetching';
+  save(data);
+  
+  https.get('https://www.ngnrates.com/black-market', (res) => {
+    let html = '';
+    
+    res.on('data', (chunk) => {
+      html += chunk;
+    });
+    
+    res.on('end', () => {
+      try {
+        console.log('✅ Page fetched successfully');
+        
+        // Extract BDC USD rates using regex
+        // Looking for patterns like: <td>USD</td><td>₦1,650</td><td>₦1,680</td>
+        const usdPattern = /<td[^>]*>\s*USD[^<]*<\/td>\s*<td[^>]*>\s*₦?\s*([\d,]+)\s*<\/td>\s*<td[^>]*>\s*₦?\s*([\d,]+)\s*<\/td>/i;
+        const match = html.match(usdPattern);
+        
+        let bdcBuyRate = 0;
+        let bdcSellRate = 0;
+        
+        if (match && match[1] && match[2]) {
+          bdcBuyRate = parseFloat(match[1].replace(/,/g, ''));
+          bdcSellRate = parseFloat(match[2].replace(/,/g, ''));
+        }
+        
+        console.log('📊 BDC USD Buy Rate (they buy from people):', bdcBuyRate);
+        console.log('📊 BDC USD Sell Rate (they sell to people):', bdcSellRate);
+        
+        if (bdcBuyRate > 0 && bdcSellRate > 0) {
+          // Apply margins
+          const buySpread = parseInt(data.settings.auto_buy_spread.value) || -30;
+          const sellSpread = parseInt(data.settings.auto_sell_spread.value) || 60;
+          
+          const ourBuyRate = Math.round(bdcBuyRate + buySpread);   // Their buy - 30
+          const ourSellRate = Math.round(bdcSellRate + sellSpread); // Their sell + 60
+          
+          console.log('💰 Our Buy Rate (we buy from customers):', ourBuyRate);
+          console.log('💰 Our Sell Rate (we sell to customers):', ourSellRate);
+          
+          // Update database
+          const freshData = load();
+          freshData.settings.buy_rate.value = String(ourBuyRate);
+          freshData.settings.sell_rate.value = String(ourSellRate);
+          freshData.settings.auto_market_rate.value = String(bdcBuyRate);
+          freshData.settings.auto_last_fetched.value = new Date().toISOString();
+          freshData.settings.auto_scrape_status.value = 'success';
+          
+          save(freshData);
+          console.log('✅ Rates updated in database!');
+        } else {
+          console.warn('⚠️ Could not extract valid rates');
+          const freshData = load();
+          freshData.settings.auto_scrape_status.value = 'failed';
+          save(freshData);
+        }
+      } catch (err) {
+        console.error('❌ Parse error:', err.message);
+        const freshData = load();
+        freshData.settings.auto_scrape_status.value = 'error';
+        save(freshData);
+      }
+    });
+  }).on('error', (err) => {
+    console.error('❌ Fetch error:', err.message);
+    const freshData = load();
+    freshData.settings.auto_scrape_status.value = 'error';
+    save(freshData);
+  });
+}
+
+// ── Init ──
 async function initDB() {
   let data = load();
+
+  // Merge any missing default settings
   for (const [key, val] of Object.entries(DEFAULT.settings)) {
     if (!data.settings[key]) data.settings[key] = val;
   }
   if (!data._nextId) data._nextId = { ...DEFAULT._nextId };
+
+  // Seed admin if empty
   if (!data.admin_users || data.admin_users.length === 0) {
     const pass = process.env.ADMIN_PASS || 'gogreen2026';
     const hash = await bcrypt.hash(pass, 12);
     data.admin_users = [{ id: 1, username: 'admin', password_hash: hash }];
     console.log('Admin created — user: admin  pass:', pass);
   }
+
+  // Apply env overrides to rates
   if (process.env.BUY_RATE)  data.settings.buy_rate.value  = process.env.BUY_RATE;
   if (process.env.SELL_RATE) data.settings.sell_rate.value = process.env.SELL_RATE;
   if (process.env.WA_NUMBER) data.settings.wa_number.value = process.env.WA_NUMBER;
+
   save(data);
-  console.log('Database ready');
+  console.log('Database ready —', DATA_PATH);
+  
+  // 🤖 Start micro bot
+  console.log('🚀 Micro Bot initialized - crawling every 6 hours');
+  
+  // Run immediately after 10 seconds (give server time to start)
+  setTimeout(() => {
+    crawlNGNRatesBlackMarket();
+  }, 10000);
+  
+  // Then run every 6 hours (21,600,000 ms)
+  setInterval(crawlNGNRatesBlackMarket, 21600000);
 }
 
 module.exports = { getDB, save, load, initDB };
