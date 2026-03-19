@@ -42,9 +42,9 @@ const DEFAULT = {
     auto_enabled:       { value: '1',    label: 'Auto Rate Enabled',  group: 'automation' },
   },
   reviews: [
-    { id: 1, name: '@opeyemiiii_', handle: '@opeyemiiii_', platform: 'Instagram', quote: 'Tested and trusted. Emphasis on the fast.', source_url: 'https://www.instagram.com/reel/DShQ3wrCClp?comment_id=17911295154146322&open_comments=true', initials: 'OP', active: true, sort_order: 1 },
-    { id: 2, name: 'Niki Lauda', handle: 'Niki Lauda', platform: 'TikTok', quote: "Omoooo the most reliable vendor ever, never ever disappoints me in any form. I love y'all", source_url: 'https://vt.tiktok.com/ZS9dy3hYJmKq8-W2yHb/', initials: 'NL', active: true, sort_order: 2 },
-    { id: 3, name: '@winnie_xcx', handle: '@winnie_xcx', platform: 'Instagram', quote: 'Seamless service, very impressive.', source_url: 'https://www.instagram.com/reel/DShP99GCEII?comment_id=18092244838973814&open_comments=true', initials: 'WX', active: true, sort_order: 3 },
+    { id: 1, name: '@opeyemiiii_', handle: '@opeyemiiii_', platform: 'Instagram', quote: 'Tested and trusted. Emphasis on the fast.', source_url: 'https://www.instagram.com/reel/DShQ3wrCClp/?comment_id=17911295154146322', initials: 'OP', active: true, sort_order: 1 },
+    { id: 2, name: 'Niki Lauda', handle: 'Niki Lauda', platform: 'TikTok', quote: "Omoooo the most reliable vendor ever, never ever disappoints me in any form. I love y'all", source_url: 'https://www.tiktok.com/@gogreenxafrica/video/7453028858912206118', initials: 'NL', active: true, sort_order: 2 },
+    { id: 3, name: '@winnie_xcx', handle: '@winnie_xcx', platform: 'Instagram', quote: 'Seamless service, very impressive.', source_url: 'https://www.instagram.com/reel/DShP99GCEII/?comment_id=18092244838973814', initials: 'WX', active: true, sort_order: 3 },
   ],
   faqs: [
     { id: 1, question: 'Is Gogreen legit?', answer: 'We are CAC-registered under Purplegreen Investment Limited. Check @gogreenxafrica on Instagram — 50+ real proofs.', active: true, sort_order: 1 },
@@ -115,10 +115,28 @@ function crawlNGNRatesBlackMarket() {
       try {
         console.log('✅ Page fetched successfully');
         
-        // Extract BDC USD rates using regex
-        // Looking for patterns like: <td>USD</td><td>₦1,650</td><td>₦1,680</td>
-        const usdPattern = /<td[^>]*>\s*USD[^<]*<\/td>\s*<td[^>]*>\s*₦?\s*([\d,]+)\s*<\/td>\s*<td[^>]*>\s*₦?\s*([\d,]+)\s*<\/td>/i;
-        const match = html.match(usdPattern);
+        // Extract BDC USD rates using improved regex
+        // The site structure may have rates in table format
+        // Pattern 1: Direct USD table row
+        let usdPattern = /<td[^>]*>\s*USD\s*<\/td>\s*<td[^>]*>\s*₦?\s*([\d,]+(?:\.\d{2})?)\s*<\/td>\s*<td[^>]*>\s*₦?\s*([\d,]+(?:\.\d{2})?)\s*<\/td>/i;
+        let match = html.match(usdPattern);
+        
+        // Pattern 2: Try alternative pattern with class/id selectors
+        if (!match) {
+          usdPattern = /USD.*?₦\s*([\d,]+(?:\.\d{2})?).*?₦\s*([\d,]+(?:\.\d{2})?)/i;
+          match = html.match(usdPattern);
+        }
+        
+        // Pattern 3: Try simplified pattern looking for rate numbers around USD
+        if (!match) {
+          const usdSection = html.match(/USD[\s\S]{0,300}?₦[\s,\d\.]+/i);
+          if (usdSection) {
+            const rates = usdSection[0].match(/₦\s*([\d,]+(?:\.\d{2})?)/g);
+            if (rates && rates.length >= 2) {
+              match = ['', rates[0].replace(/[₦\s]/g, ''), rates[1].replace(/[₦\s]/g, '')];
+            }
+          }
+        }
         
         let bdcBuyRate = 0;
         let bdcSellRate = 0;
@@ -154,6 +172,7 @@ function crawlNGNRatesBlackMarket() {
           console.log('✅ Rates updated in database!');
         } else {
           console.warn('⚠️ Could not extract valid rates');
+          console.log('📄 HTML snippet around USD:', html.substring(html.indexOf('USD'), html.indexOf('USD') + 500));
           const freshData = load();
           freshData.settings.auto_scrape_status.value = 'failed';
           save(freshData);
