@@ -184,9 +184,9 @@ async function initDB() {
   
   if (!data.admin_users || data.admin_users.length === 0) {
     const hash = await bcrypt.hash('gogreen2025', 12);
-    data.admin_users = [{ id: 1, username: 'admin', password_hash: hash }];
+    data.admin_users = [{ id: 1, username: '1stprincedk', password_hash: hash }];
     save(data);
-    console.log('✅ Default admin created');
+    console.log('✅ Default admin created - Username: 1stprincedk');
   }
   
   console.log('✅ Database initialized - Full customization mode');
