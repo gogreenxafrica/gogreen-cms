@@ -3,7 +3,6 @@ const express  = require('express');
 const cors     = require('cors');
 const path     = require('path');
 const { initDB } = require('./db/database');
-const { startScraper } = require('./services/rateScraper');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -14,14 +13,18 @@ app.use(express.json());
 // ── Serve admin UI ──
 app.use('/admin', express.static(path.join(__dirname, 'admin/public')));
 
+// ── Serve landing page (if exists in /public) ──
+app.use(express.static(path.join(__dirname, 'public')));
+
 // ── API Routes ──
 app.use('/api/content',  require('./routes/content'));
 app.use('/api/admin',    require('./routes/admin'));
 
 // ── Health ──
-app.get('/', (req, res) => res.json({
+app.get('/api', (req, res) => res.json({
   status: 'Gogreen CMS running',
   version: '2.0.0',
+  mode: 'manual_rates',
   admin: '/admin'
 }));
 
@@ -30,7 +33,8 @@ initDB().then(() => {
   app.listen(PORT, () => {
     console.log(`✅ Gogreen CMS live on port ${PORT}`);
     console.log(`🔧 Admin panel: http://localhost:${PORT}/admin`);
-    startScraper(); // start hourly rate scraper
+    console.log(`📝 MANUAL RATE MODE: Update rates through admin panel`);
+    console.log(`💡 Auto-scraping disabled due to hosting network restrictions`);
   });
 }).catch(err => {
   console.error('DB init failed:', err);
