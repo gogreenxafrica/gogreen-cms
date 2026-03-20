@@ -161,7 +161,7 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <div class="login-err" id="loginErr"></div>
     <div class="field" style="margin-bottom:10px">
       <label>Username</label>
-      <input type="text" id="loginUser" placeholder="admin" value="admin" />
+      <input type="text" id="loginUser" placeholder="Username" autocomplete="off" />
     </div>
     <div class="field">
       <label>Password</label>
@@ -379,6 +379,10 @@ tr:hover td{background:rgba(255,255,255,.02)}
             <div class="rate-label">We Sell (₦ per $)</div>
             <input class="rate-input sell" id="f-sell_rate" type="number" placeholder="1480" />
             <div class="rate-sub">Rate at which you sell USDT to customers</div>
+        </div>
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);text-align:right">
+          <button class="btn btn-primary" id="save-rates" onclick="handleSave('rates')">Save Rates</button>
+        </div>
           </div>
         </div>
       </div>
@@ -402,6 +406,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <div class="field"><label>Twitter / X</label><input type="text" id="f-twitter" placeholder="gogreenxafrica" /></div>
           <div class="field"><label>LinkedIn</label><input type="text" id="f-linkedin" placeholder="gogreenxafrica" /></div>
         </div>
+          <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);text-align:right">
+          <button class="btn btn-primary" id="save-contact" onclick="handleSave('contact')">Save Contact</button>
+        </div>
       </div>
     </div>
 
@@ -415,6 +422,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <div class="field"><label>Subheading</label><input type="text" id="f-hero_subheading" /></div>
           <div class="field field-full"><label>Body Text</label><textarea id="f-hero_sub"></textarea></div>
           <div class="field field-full"><label>Bento Quote</label><textarea id="f-bento_quote" style="min-height:55px"></textarea></div>
+        </div>
+          <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);text-align:right">
+          <button class="btn btn-primary" id="save-hero" onclick="handleSave('hero')">Save Hero</button>
         </div>
       </div>
     </div>
@@ -444,6 +454,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <div class="field"><label>Title</label><input type="text" id="f-feat3_title" /></div>
           <div class="field field-full"><label>Body</label><textarea id="f-feat3_body"></textarea></div>
         </div>
+          <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);text-align:right">
+          <button class="btn btn-primary" id="save-features" onclick="handleSave('features')">Save Features</button>
+        </div>
       </div>
     </div>
 
@@ -461,6 +474,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <div style="border-top:1px solid var(--border);padding-top:14px"><div style="font-family:'Bricolage Grotesque',sans-serif;font-size:.6rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--g2);margin-bottom:8px">Step 03</div>
             <div class="card-grid"><div class="field"><label>Title</label><input type="text" id="f-how_step3_title" /></div><div class="field field-full"><label>Body</label><textarea id="f-how_step3_body" style="min-height:60px"></textarea></div></div>
           </div>
+        </div>
+          <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);text-align:right">
+          <button class="btn btn-primary" id="save-how" onclick="handleSave('how')">Save How It Works</button>
         </div>
       </div>
     </div>
@@ -566,6 +582,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
           <div class="field"><label>Word 7</label><input type="text" id="f-hero_word7" placeholder="Venmo" /></div>
           <div class="field"><label>Word 8</label><input type="text" id="f-hero_word8" placeholder="BTC" /></div>
         </div>
+          <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);text-align:right">
+          <button class="btn btn-primary" id="save-features" onclick="handleSave('features')">Save Features</button>
+        </div>
       </div>
     </div>
 
@@ -645,6 +664,9 @@ tr:hover td{background:rgba(255,255,255,.02)}
         </div>
       </div>
     </div>
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border);text-align:right">
+          <button class="btn btn-primary" id="save-cta" onclick="handleSave('cta')">Save CTA & Footer</button>
+        </div>
       </div>
     </div>
 
@@ -845,7 +867,13 @@ function loadSettingsIntoPanel(panel) {
   });
 }
 
-async function saveCurrentPanel() {
+// NEW: Save specific panel by name
+// Wrapper for onclick events (they can't handle async directly)
+function handleSave(panelName) {
+  savePanelByName(panelName);
+}
+
+async function savePanelByName(panelName) {
   var panelKeys = {
     rates:    ['buy_rate','sell_rate'],
     contact:  ['wa_number','ig_handle','ig_backup','tiktok','twitter','linkedin'],
@@ -854,6 +882,54 @@ async function saveCurrentPanel() {
     how:      ['how_step1_title','how_step1_body','how_step2_title','how_step2_body','how_step3_title','how_step3_body'],
     cta:      ['cta_heading','cta_body','footer_copy'],
   };
+  
+  var keys = panelKeys[panelName] || [];
+  var updates = {};
+  
+  keys.forEach(function(k){
+    var el = document.getElementById('f-'+k);
+    if (el) { 
+      updates[k] = el.value; 
+      settingsCache[k] = el.value; 
+    }
+  });
+  
+  var btnId = 'save-' + panelName;
+  var btn = document.getElementById(btnId);
+  if (btn) {
+    btn.textContent = 'Saving...';
+    btn.disabled = true;
+  }
+  
+  try {
+    var r = await apiPost('/api/admin/settings/batch', { settings: updates });
+    
+    if (btn) {
+      btn.textContent = 'Saved ✓';
+      btn.disabled = false;
+      setTimeout(function() {
+        btn.textContent = 'Save Changes';
+      }, 2000);
+    }
+    
+    if (r && r.success) {
+      toast('✦ Saved successfully');
+    } else {
+      toast('Failed to save', true);
+      if (btn) btn.textContent = 'Save Changes';
+    }
+  } catch (e) {
+    toast('Error: ' + e.message, true);
+    if (btn) {
+      btn.textContent = 'Save Changes';
+      btn.disabled = false;
+    }
+  }
+}
+
+async function saveCurrentPanel() {
+  await savePanelByName(currentPanel);
+};
   var keys = panelKeys[currentPanel] || [];
   var updates = {};
   keys.forEach(function(k){
@@ -862,7 +938,7 @@ async function saveCurrentPanel() {
   });
   var btn = document.getElementById('saveAllBtn');
   btn.textContent = 'Saving...'; btn.disabled = true;
-  var r = await apiPost('/api/admin/settings/batch', { updates });
+  var r = await apiPost('/api/admin/settings/batch', { settings: updates });
   btn.textContent = 'Save Changes'; btn.disabled = false;
   if (r.success) toast('✦ Saved successfully');
   else toast('Failed to save', true);
