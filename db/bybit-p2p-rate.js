@@ -1,12 +1,21 @@
 /**
- * Bybit P2P Rate Engine
- * Fetches real-time USD/NGN rates from Bybit P2P marketplace
- * No API keys required - uses public endpoint
+ * Bybit P2P Rate Engine - Authenticated API
+ * Uses official Bybit API with your credentials
+ * TESTNET MODE - for testing
  */
 
 const https = require('https');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+
+// Bybit API Credentials (TESTNET)
+const API_KEY = 'yXS0DCmVHll7xPtd6l';
+const API_SECRET = '7UfNEzvsu0PJN2HbcC1PdvKgvnxeGXsnbsNq';
+
+// API endpoints
+const IS_TESTNET = true; // Set to false for production
+const API_HOST = IS_TESTNET ? 'api-testnet.bybit.com' : 'api.bybit.com';
 
 // Fallback storage
 const FALLBACK_PATH = path.join(__dirname, 'last_bybit_rate.json');
@@ -18,24 +27,68 @@ const MIN_REASONABLE_PRICE = 1000; // Ignore suspicious prices below ₦1000/$
 const MIN_COMPLETION_RATE = 0.95; // Only trust advertisers with 95%+ completion
 
 /**
- * Fetch P2P ads from Bybit
+ * Generate Bybit API signature
+ * @param {string} timestamp - Current timestamp
+ * @param {string} queryString - Query parameters as string
+ * @returns {string} HMAC signature
+ */
+function generateSignature(timestamp, queryString) {
+  const paramStr = timestamp + API_KEY + queryString;
+  return crypto
+    .createHmac('sha256', API_SECRET)
+    .update(paramStr)
+    .digest('hex');
+}
+
+/**
+ * Fetch P2P ads from Bybit with authentication
  * @param {string} side - '0' for BUY (get sellers), '1' for SELL (get buyers)
  * @returns {Promise<Array>}
  */
 function fetchBybitP2P(side) {
   return new Promise((resolve, reject) => {
-    const url = `https://api.bybit.com/v5/market/get-p2p-ad?tokenId=USDT&currencyId=NGN&side=${side}&size=100`;
+    const timestamp = Date.now().toString();
+    const recvWindow = '5000';
     
-    const options = {
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'User-Agent': 'Mozilla/5.0'
-      }
+    // Query parameters
+    const params = {
+      tokenId: 'USDT',
+      currencyId: 'NGN',
+      side: side,
+      size: '100'
     };
     
-    https.get(url, options, (res) => {
+    // Build query string
+    const queryString = Object.entries(params)
+      .map(([key, val]) => `${key}=${val}`)
+      .join('&');
+    
+    // Generate signature
+    const signature = generateSignature(timestamp, recvWindow + queryString);
+    
+    const options = {
+      hostname: API_HOST,
+      port: 443,
+      path: `/v5/market/get-p2p-ad?${queryString}`,
+      method: 'GET',
+      headers: {
+        'X-BAPI-API-KEY': API_KEY,
+        'X-BAPI-TIMESTAMP': timestamp,
+        'X-BAPI-SIGN': signature,
+        'X-BAPI-RECV-WINDOW': recvWindow,
+        'Content-Type': 'application/json',
+        'User-Agent': 'Gogreen-Rate-Engine/1.0'
+      },
+      timeout: 15000
+    };
+    
+    console.log(`🌐 Requesting Bybit ${side === '0' ? 'SELLERS' : 'BUYERS'} from ${API_HOST}...`);
+    console.log(`🔑 Using API Key: ${API_KEY.substring(0, 6)}...`);
+    
+    const req = https.request(options, (res) => {
       let data = '';
+      
+      console.log('📡 Response status:', res.statusCode);
       
       res.on('data', (chunk) => {
         data += chunk;
@@ -43,20 +96,38 @@ function fetchBybitP2P(side) {
       
       res.on('end', () => {
         try {
+          console.log('📄 Response preview:', data.substring(0, 300));
+          
           const parsed = JSON.parse(data);
           
-          if (parsed.retCode === 0 && parsed.result && parsed.result.items) {
+          // Check for API errors
+          if (parsed.retCode !== 0) {
+            reject(new Error(`Bybit API error (code ${parsed.retCode}): ${parsed.retMsg}`));
+            return;
+          }
+          
+          if (parsed.result && parsed.result.items) {
+            console.log(`✅ Received ${parsed.result.items.length} ads`);
             resolve(parsed.result.items);
           } else {
-            reject(new Error('Invalid API response: ' + (parsed.retMsg || 'Unknown error')));
+            reject(new Error('Invalid API response structure'));
           }
         } catch (err) {
-          reject(new Error('JSON parse error: ' + err.message));
+          reject(new Error('JSON parse error: ' + err.message + ' | Response: ' + data.substring(0, 200)));
         }
       });
-    }).on('error', (err) => {
+    });
+    
+    req.on('error', (err) => {
       reject(new Error('HTTPS request failed: ' + err.message));
     });
+    
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('Request timeout after 15 seconds'));
+    });
+    
+    req.end();
   });
 }
 
@@ -129,7 +200,7 @@ function calculateAveragePrice(ads, topN = 10) {
   
   if (filtered.length === 0) return mean;
   
-  // Return average of non-outliers, rounded to 2 decimals
+  // Return average of non-outliers
   const average = filtered.reduce((a, b) => a + b, 0) / filtered.length;
   return Math.round(average * 100) / 100;
 }
@@ -170,6 +241,7 @@ function saveFallbackRate(rateData) {
 async function getBybitP2PRate(tradeAmount = 50000) {
   try {
     console.log('🔍 Fetching Bybit P2P rates for ₦' + tradeAmount.toLocaleString() + ' trades...');
+    console.log(`🌍 Environment: ${IS_TESTNET ? 'TESTNET' : 'PRODUCTION'}`);
     
     // Fetch both sides in parallel
     const [sellersRaw, buyersRaw] = await Promise.all([
@@ -200,14 +272,15 @@ async function getBybitP2PRate(tradeAmount = 50000) {
     const result = {
       market_buy_rate: Math.round(marketBuyRate),
       market_sell_rate: Math.round(marketSellRate),
-      source: 'bybit_p2p',
+      source: IS_TESTNET ? 'bybit_p2p_testnet' : 'bybit_p2p',
       timestamp: new Date().toISOString(),
       metadata: {
         sellers_count: sellers.length,
         buyers_count: buyers.length,
         trade_amount: tradeAmount,
         top_seller_price: sellers.length > 0 ? parseFloat(sellers[0].price) : null,
-        top_buyer_price: buyers.length > 0 ? parseFloat(buyers[0].price) : null
+        top_buyer_price: buyers.length > 0 ? parseFloat(buyers[0].price) : null,
+        environment: IS_TESTNET ? 'testnet' : 'production'
       }
     };
     
@@ -216,7 +289,7 @@ async function getBybitP2PRate(tradeAmount = 50000) {
     
     console.log(`💰 Market Buy Rate (you buy USDT): ₦${result.market_buy_rate}`);
     console.log(`💰 Market Sell Rate (you sell USDT): ₦${result.market_sell_rate}`);
-    console.log(`📈 Spread: ₦${result.market_sell_rate - result.market_buy_rate}`);
+    console.log(`📈 Market Spread: ₦${Math.abs(result.market_sell_rate - result.market_buy_rate)}`);
     
     return result;
     
@@ -256,6 +329,7 @@ if (require.main === module) {
     .then(result => {
       console.log('\n📋 Full Result:');
       console.log(JSON.stringify(result, null, 2));
+      console.log('\n✅ SUCCESS! Bybit P2P rate engine is working!');
     })
     .catch(err => {
       console.error('\n💥 Error:', err.message);
