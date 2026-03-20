@@ -35,9 +35,14 @@ router.post('/change-password', auth, async (req, res) => {
 // SETTINGS
 router.get('/settings', auth, (req, res) => {
   const data = load();
-  const s = {};
-  Object.entries(data.settings).forEach(([k,v]) => s[k] = v.value);
-  res.json(s);
+  // Group settings by their group property
+  const grouped = {};
+  Object.entries(data.settings).forEach(([k, v]) => {
+    const group = v.group || 'other';
+    if (!grouped[group]) grouped[group] = [];
+    grouped[group].push({ key: k, value: v.value, label: v.label });
+  });
+  res.json(grouped);
 });
 
 router.put('/settings', auth, (req, res) => {
