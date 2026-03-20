@@ -2,12 +2,11 @@
  * Pure JSON file database — zero compilation, works on any host.
  * Data stored in db/data.json
  * 
- * NOW WITH BYBIT P2P RATE ENGINE — fetches real rates every 6 hours
+ * MANUAL RATE MODE — Auto-fetching disabled due to hosting restrictions
  */
 const fs     = require('fs');
 const path   = require('path');
 const bcrypt = require('bcryptjs');
-const { getBybitP2PRate } = require('./bybit-p2p-rate');
 
 const DATA_PATH = process.env.DB_PATH || path.join(__dirname, 'data.json');
 
@@ -89,59 +88,22 @@ function getDB() {
   return load();
 }
 
-// ── 🤖 BYBIT P2P RATE ENGINE ──
+// ── 🤖 AUTO RATE ENGINE (DISABLED - MANUAL MODE) ──
 async function updateRatesFromBybit() {
   const data = load();
   
   // Check if auto rate is enabled
   if (data.settings.auto_enabled && data.settings.auto_enabled.value === '0') {
-    console.log('🤖 Auto rate disabled, skipping Bybit update');
+    console.log('🤖 Auto rate disabled - using manual rates');
     return;
   }
   
-  console.log('🤖 Bybit P2P: Fetching real-time USDT/NGN rates...');
+  console.log('⚠️ Auto-rate is enabled but network restrictions prevent fetching');
+  console.log('💡 Please set rates manually in admin panel or upgrade hosting');
   
-  data.settings.auto_scrape_status.value = 'fetching';
+  // Set status to error so admin knows
+  data.settings.auto_scrape_status.value = 'network_blocked';
   save(data);
-  
-  try {
-    // Fetch rates from Bybit P2P (50k NGN typical trade amount)
-    const rateData = await getBybitP2PRate(50000);
-    
-    console.log('✅ Bybit P2P rates received');
-    console.log('📊 Market Buy Rate (baseline): ₦' + rateData.market_buy_rate);
-    console.log('📊 Market Sell Rate (reference): ₦' + rateData.market_sell_rate);
-    
-    // Apply your spread settings
-    const buySpread = parseInt(data.settings.auto_buy_spread.value) || -30;
-    const sellSpread = parseInt(data.settings.auto_sell_spread.value) || 60;
-    
-    // Use market buy rate as baseline for both (consistent base)
-    const ourBuyRate = Math.round(rateData.market_buy_rate + buySpread);   // Market - 30
-    const ourSellRate = Math.round(rateData.market_buy_rate + sellSpread); // Market + 60
-    
-    console.log('💰 Our Buy Rate (we buy from customers): ₦' + ourBuyRate + ' (market ' + buySpread + ')');
-    console.log('💰 Our Sell Rate (we sell to customers): ₦' + ourSellRate + ' (market +' + sellSpread + ')');
-    console.log('📈 Our Spread: ₦' + (ourSellRate - ourBuyRate));
-    
-    // Update database
-    const freshData = load();
-    freshData.settings.buy_rate.value = String(ourBuyRate);
-    freshData.settings.sell_rate.value = String(ourSellRate);
-    freshData.settings.auto_market_rate.value = String(rateData.market_buy_rate);
-    freshData.settings.auto_last_fetched.value = rateData.timestamp;
-    freshData.settings.auto_scrape_status.value = 'success';
-    
-    save(freshData);
-    console.log('✅ Rates updated successfully from Bybit P2P!');
-    
-  } catch (err) {
-    console.error('❌ Bybit P2P update failed:', err.message);
-    
-    const freshData = load();
-    freshData.settings.auto_scrape_status.value = 'error';
-    save(freshData);
-  }
 }
 
 // ── Init ──
@@ -170,32 +132,9 @@ async function initDB() {
   save(data);
   console.log('Database ready —', DATA_PATH);
   
-  // 🤖 Start Bybit P2P rate engine with random intervals
-  console.log('🚀 Bybit P2P Rate Engine initialized - updating every 2-5 minutes (random)');
-  
-  /**
-   * Schedule next update with random interval between 2-5 minutes
-   */
-  function scheduleNextUpdate() {
-    // Random interval between 2 and 5 minutes (in milliseconds)
-    const minInterval = 2 * 60 * 1000;  // 2 minutes
-    const maxInterval = 5 * 60 * 1000;  // 5 minutes
-    const randomInterval = Math.floor(Math.random() * (maxInterval - minInterval + 1)) + minInterval;
-    
-    const nextUpdateMinutes = (randomInterval / 60000).toFixed(1);
-    console.log(`⏰ Next rate update in ${nextUpdateMinutes} minutes`);
-    
-    setTimeout(async () => {
-      await updateRatesFromBybit();
-      scheduleNextUpdate(); // Schedule the next one after this completes
-    }, randomInterval);
-  }
-  
-  // Run first update after 10 seconds (give server time to start)
-  setTimeout(async () => {
-    await updateRatesFromBybit();
-    scheduleNextUpdate(); // Start the random scheduling loop
-  }, 10000);
+  // 🔒 Auto-rate engine DISABLED (manual mode)
+  console.log('📝 MANUAL RATE MODE: Update rates through admin panel');
+  console.log('💡 To enable auto-rates: upgrade hosting or use external proxy');
 }
 
 module.exports = { getDB, save, load, initDB };
