@@ -363,18 +363,22 @@ tr:hover td{background:rgba(255,255,255,.02)}
     <!-- RATES -->
     <div class="panel" id="panel-rates">
       <div class="card">
-        <div class="card-title">💱 Exchange Rates</div>
-        <div class="card-sub">These update across the landing page and rate calculator immediately on save.</div>
+        <div class="card-title">💱 Manual Rate Entry</div>
+        <div class="card-sub">Enter your rates directly. These update across the landing page immediately on save.</div>
+        <div style="padding:12px;background:rgba(137,206,51,.08);border:1px solid rgba(137,206,51,.15);border-radius:8px;margin-bottom:16px;font-size:.72rem;color:var(--text)">
+          <strong>✓ Manual Mode Active</strong><br>
+          Auto-rate fetching is disabled. You have full control - just type your rates and click Save Changes.
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
           <div class="rate-card">
             <div class="rate-label">We Buy (₦ per $)</div>
-            <input class="rate-input" id="f-buy_rate" type="number" placeholder="1388" />
-            <div class="rate-sub">Customers sell to you at this rate</div>
+            <input class="rate-input" id="f-buy_rate" type="number" placeholder="1420" />
+            <div class="rate-sub">Rate at which you buy USDT from customers</div>
           </div>
           <div class="rate-card">
             <div class="rate-label">We Sell (₦ per $)</div>
-            <input class="rate-input sell" id="f-sell_rate" type="number" placeholder="1489" />
-            <div class="rate-sub">Customers buy from you at this rate</div>
+            <input class="rate-input sell" id="f-sell_rate" type="number" placeholder="1480" />
+            <div class="rate-sub">Rate at which you sell USDT to customers</div>
           </div>
         </div>
       </div>
