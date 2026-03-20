@@ -7,14 +7,15 @@
 const fs     = require('fs');
 const path   = require('path');
 const bcrypt = require('bcryptjs');
-const { getBybitP2PRate } = require('./bybit-p2p-rate');
+const { getBybitP2PRate } = require('./lib/bybit-p2p-rate');
+
 const DATA_PATH = process.env.DB_PATH || path.join(__dirname, 'data.json');
 
 // ── Default data ──
 const DEFAULT = {
   settings: {
-    buy_rate:        { value: '1388',                          label: 'We Buy Rate',        group: 'rates' },
-    sell_rate:       { value: '1489',                          label: 'We Sell Rate',        group: 'rates' },
+    buy_rate:        { value: '0',                             label: 'We Buy Rate',        group: 'rates' },
+    sell_rate:       { value: '0',                             label: 'We Sell Rate',        group: 'rates' },
     wa_number:       { value: '2347010975329',                 label: 'WhatsApp Number',     group: 'contact' },
     ig_handle:       { value: 'gogreenxafrica',                label: 'Instagram Handle',    group: 'social' },
     tiktok:          { value: 'gogreenxafrica',                label: 'TikTok Handle',       group: 'social' },
