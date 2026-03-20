@@ -516,6 +516,135 @@ tr:hover td{background:rgba(255,255,255,.02)}
         <div class="card-grid">
           <div class="field field-full"><label>Copyright Text</label><input type="text" id="f-footer_copy" /></div>
         </div>
+        <!-- ═══════════════════════════════════════════════════════════════════ -->
+<!-- ADD THESE NEW PANELS TO YOUR ADMIN PANEL -->
+<!-- Insert after the existing panels (after "CTA & Footer" panel) -->
+<!-- ═══════════════════════════════════════════════════════════════════ -->
+
+    <!-- BRANDING -->
+    <div class="panel" id="panel-branding">
+      <div class="card">
+        <div class="card-title">🏢 Branding & Identity</div>
+        <div class="card-sub">Your brand name, logo, and company details.</div>
+        <div class="card-grid">
+          <div class="field"><label>Site Name</label><input type="text" id="f-site_name" placeholder="Gogreen Exchange" /></div>
+          <div class="field"><label>Logo Text (2-3 characters)</label><input type="text" id="f-logo_text" placeholder="GG" maxlength="3" /></div>
+          <div class="field"><label>Favicon Emoji</label><input type="text" id="f-favicon_emoji" placeholder="💚" maxlength="2" /></div>
+          <div class="field field-full"><label>Company Legal Name</label><input type="text" id="f-company_name" placeholder="Purplegreen Investment Limited" /></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- THEME COLORS -->
+    <div class="panel" id="panel-colors">
+      <div class="card">
+        <div class="card-title">🎨 Theme Colors</div>
+        <div class="card-sub">Customize your brand colors. Changes apply across the entire site.</div>
+        <div class="card-grid">
+          <div class="field"><label>Primary Green</label><input type="color" id="f-color_primary" value="#2DA437" /></div>
+          <div class="field"><label>Light Green</label><input type="color" id="f-color_secondary" value="#89CE33" /></div>
+          <div class="field"><label>Dark Background</label><input type="color" id="f-color_bg_dark" value="#080c08" /></div>
+          <div class="field"><label>Light Background</label><input type="color" id="f-color_bg_light" value="#f5f9f5" /></div>
+          <div class="field"><label>Dark Text</label><input type="color" id="f-color_text_dark" value="#0a0e0a" /></div>
+          <div class="field"><label>Light Text</label><input type="color" id="f-color_text_light" value="#eef2ee" /></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HERO WORDS -->
+    <div class="panel" id="panel-hero_words">
+      <div class="card">
+        <div class="card-title">✨ Animated Hero Words</div>
+        <div class="card-sub">The words that rotate in the hero section (USDT, PayPal, etc.)</div>
+        <div class="card-grid">
+          <div class="field"><label>Word 1</label><input type="text" id="f-hero_word1" placeholder="USDT" /></div>
+          <div class="field"><label>Word 2</label><input type="text" id="f-hero_word2" placeholder="PayPal" /></div>
+          <div class="field"><label>Word 3</label><input type="text" id="f-hero_word3" placeholder="Gift Cards" /></div>
+          <div class="field"><label>Word 4</label><input type="text" id="f-hero_word4" placeholder="CashApp" /></div>
+          <div class="field"><label>Word 5</label><input type="text" id="f-hero_word5" placeholder="Crypto" /></div>
+          <div class="field"><label>Word 6</label><input type="text" id="f-hero_word6" placeholder="EUR" /></div>
+          <div class="field"><label>Word 7</label><input type="text" id="f-hero_word7" placeholder="Venmo" /></div>
+          <div class="field"><label>Word 8</label><input type="text" id="f-hero_word8" placeholder="BTC" /></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HOW IT WORKS -->
+    <div class="panel" id="panel-how">
+      <div class="card">
+        <div class="card-title">📋 How It Works Section</div>
+        <div class="card-sub">The 3-step process explaining how customers trade with you.</div>
+        <div style="margin-bottom:16px">
+          <div class="field field-full"><label>Section Title</label><input type="text" id="f-how_section_title" placeholder="How It Works" /></div>
+        </div>
+        <div style="display:grid;gap:16px">
+          <div class="card" style="background:rgba(45,164,55,.05);border-color:rgba(45,164,55,.15)">
+            <div class="card-title" style="font-size:.75rem;margin-bottom:12px">Step 1</div>
+            <div class="card-grid">
+              <div class="field"><label>Emoji</label><input type="text" id="f-how_step1_emoji" placeholder="💬" maxlength="2" /></div>
+              <div class="field"><label>Title</label><input type="text" id="f-how_step1_title" placeholder="Send a Message" /></div>
+              <div class="field field-full"><label>Description</label><textarea id="f-how_step1_body" placeholder="Tap WhatsApp, tell us what you're trading."></textarea></div>
+            </div>
+          </div>
+          <div class="card" style="background:rgba(45,164,55,.05);border-color:rgba(45,164,55,.15)">
+            <div class="card-title" style="font-size:.75rem;margin-bottom:12px">Step 2</div>
+            <div class="card-grid">
+              <div class="field"><label>Emoji</label><input type="text" id="f-how_step2_emoji" placeholder="💸" maxlength="2" /></div>
+              <div class="field"><label>Title</label><input type="text" id="f-how_step2_title" placeholder="Get Your Rate" /></div>
+              <div class="field field-full"><label>Description</label><textarea id="f-how_step2_body" placeholder="We quote you instantly. No hidden fees."></textarea></div>
+            </div>
+          </div>
+          <div class="card" style="background:rgba(45,164,55,.05);border-color:rgba(45,164,55,.15)">
+            <div class="card-title" style="font-size:.75rem;margin-bottom:12px">Step 3</div>
+            <div class="card-grid">
+              <div class="field"><label>Emoji</label><input type="text" id="f-how_step3_emoji" placeholder="✅" maxlength="2" /></div>
+              <div class="field"><label>Title</label><input type="text" id="f-how_step3_title" placeholder="Receive Naira" /></div>
+              <div class="field field-full"><label>Description</label><textarea id="f-how_step3_body" placeholder="Transfer confirmed. Naira hits your account."></textarea></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- THEME EASTER EGG -->
+    <div class="panel" id="panel-theme_easter">
+      <div class="card">
+        <div class="card-title">🎉 Theme Switch Easter Egg</div>
+        <div class="card-sub">Emojis that appear when someone clicks the theme toggle multiple times.</div>
+        <div class="card-grid">
+          <div class="field"><label>Emoji 1</label><input type="text" id="f-theme_emoji1" placeholder="🌙" maxlength="2" /></div>
+          <div class="field"><label>Emoji 2</label><input type="text" id="f-theme_emoji2" placeholder="☀️" maxlength="2" /></div>
+          <div class="field"><label>Emoji 3</label><input type="text" id="f-theme_emoji3" placeholder="💚" maxlength="2" /></div>
+          <div class="field"><label>Emoji 4</label><input type="text" id="f-theme_emoji4" placeholder="🎉" maxlength="2" /></div>
+          <div class="field"><label>Emoji 5</label><input type="text" id="f-theme_emoji5" placeholder="✨" maxlength="2" /></div>
+          <div class="field field-full"><label>Toast Message</label><input type="text" id="f-theme_toast_msg" placeholder="Vibing! 🎨" /></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CALCULATOR -->
+    <div class="panel" id="panel-calculator">
+      <div class="card">
+        <div class="card-title">🧮 Rate Calculator</div>
+        <div class="card-sub">Customize the floating calculator widget text.</div>
+        <div class="card-grid">
+          <div class="field"><label>Title</label><input type="text" id="f-calc_title" placeholder="Quick Calculator" /></div>
+          <div class="field"><label>Subtitle</label><input type="text" id="f-calc_subtitle" placeholder="See what you'll get" /></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- SEO -->
+    <div class="panel" id="panel-seo">
+      <div class="card">
+        <div class="card-title">🔍 SEO & Meta Tags</div>
+        <div class="card-sub">Page title and description for search engines.</div>
+        <div class="card-grid">
+          <div class="field field-full"><label>Page Title</label><input type="text" id="f-meta_title" placeholder="Gogreen Exchange — Trade It, Get Naira" /></div>
+          <div class="field field-full"><label>Meta Description</label><textarea id="f-meta_description" placeholder="Sell crypto, gift cards, CashApp and more. Get naira fast."></textarea></div>
+        </div>
+      </div>
+    </div>
       </div>
     </div>
 
