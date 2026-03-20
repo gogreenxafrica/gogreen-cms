@@ -1,338 +1,201 @@
 /**
- * Bybit P2P Rate Engine - Authenticated API
- * Uses official Bybit API with your credentials
- * TESTNET MODE - for testing
+ * Pure JSON file database — zero compilation, works on any host.
+ * Data stored in db/data.json
+ * 
+ * NOW WITH BYBIT P2P RATE ENGINE — fetches real rates every 6 hours
  */
+const fs     = require('fs');
+const path   = require('path');
+const bcrypt = require('bcryptjs');
+const { getBybitP2PRate } = require('./lib/bybit-p2p-rate');
 
-const https = require('https');
-const crypto = require('crypto');
-const fs = require('fs');
-const path = require('path');
+const DATA_PATH = process.env.DB_PATH || path.join(__dirname, 'data.json');
 
-// Bybit API Credentials (TESTNET)
-const API_KEY = 'yXS0DCmVHll7xPtd6l';
-const API_SECRET = '7UfNEzvsu0PJN2HbcC1PdvKgvnxeGXsnbsNq';
+// ── Default data ──
+const DEFAULT = {
+  settings: {
+    buy_rate:        { value: '0',                          label: 'We Buy Rate',        group: 'rates' },
+    sell_rate:       { value: '0',                          label: 'We Sell Rate',        group: 'rates' },
+    wa_number:       { value: '2347010975329',                 label: 'WhatsApp Number',     group: 'contact' },
+    ig_handle:       { value: 'gogreenxafrica',                label: 'Instagram Handle',    group: 'social' },
+    tiktok:          { value: 'gogreenxafrica',                label: 'TikTok Handle',       group: 'social' },
+    twitter:         { value: 'gogreenxafrica',                label: 'Twitter/X Handle',    group: 'social' },
+    hero_headline:   { value: 'Whatever Digital Money.',       label: 'Hero Headline',       group: 'hero' },
+    hero_subheading: { value: 'Get Naira. Fast.',              label: 'Hero Subheading',     group: 'hero' },
+    hero_badge:      { value: 'Live & Trading 24/7',           label: 'Hero Badge',          group: 'hero' },
+    feat1_tag:       { value: 'Trust & Safety',                label: 'Feature 1 Tag',       group: 'features' },
+    feat1_title:     { value: 'CAC Registered & Trademarked',  label: 'Feature 1 Title',     group: 'features' },
+    feat1_body:      { value: 'CAC registered, trademarked. 50+ proofs on Instagram.', label: 'Feature 1 Body', group: 'features' },
+    feat2_tag:       { value: 'Speed',                         label: 'Feature 2 Tag',       group: 'features' },
+    feat2_title:     { value: 'Instant Naira. No Delays.',     label: 'Feature 2 Title',     group: 'features' },
+    feat2_body:      { value: 'Once confirmed, e don enter your account. No stories.', label: 'Feature 2 Body', group: 'features' },
+    feat3_tag:       { value: 'Coverage',                      label: 'Feature 3 Tag',       group: 'features' },
+    feat3_title:     { value: 'Any Currency. Any Country.',    label: 'Feature 3 Title',     group: 'features' },
+    feat3_body:      { value: 'EUR, USD, UK, Canada, India and more.', label: 'Feature 3 Body', group: 'features' },
+    cta_heading:     { value: 'Ready to trade?',               label: 'CTA Heading',         group: 'cta' },
+    footer_copy:     { value: '© 2026 Purplegreen Investment Limited', label: 'Footer Copyright', group: 'footer' },
+    auto_buy_spread:    { value: '-30',  label: 'Buy Spread',         group: 'automation' },
+    auto_sell_spread:   { value: '60',   label: 'Sell Spread',        group: 'automation' },
+    auto_market_rate:   { value: '0',    label: 'Last Market Rate',   group: 'automation' },
+    auto_last_fetched:  { value: '',     label: 'Last Fetch Time',    group: 'automation' },
+    auto_scrape_status: { value: 'idle', label: 'Scraper Status',     group: 'automation' },
+    auto_enabled:       { value: '1',    label: 'Auto Rate Enabled',  group: 'automation' },
+  },
+  reviews: [
+    { id: 1, name: '@opeyemiiii_', handle: '@opeyemiiii_', platform: 'Instagram', quote: 'Tested and trusted. Emphasis on the fast.', source_url: 'https://www.instagram.com/reel/DShQ3wrCClp/?comment_id=17911295154146322', initials: 'OP', active: true, sort_order: 1 },
+    { id: 2, name: 'Niki Lauda', handle: 'Niki Lauda', platform: 'TikTok', quote: "Omoooo the most reliable vendor ever, never ever disappoints me in any form. I love y'all", source_url: 'https://www.tiktok.com/@gogreenxafrica/video/7453028858912206118', initials: 'NL', active: true, sort_order: 2 },
+    { id: 3, name: '@winnie_xcx', handle: '@winnie_xcx', platform: 'Instagram', quote: 'Seamless service, very impressive.', source_url: 'https://www.instagram.com/reel/DShP99GCEII/?comment_id=18092244838973814', initials: 'WX', active: true, sort_order: 3 },
+  ],
+  faqs: [
+    { id: 1, question: 'Is Gogreen legit?', answer: 'We are CAC-registered under Purplegreen Investment Limited. Check @gogreenxafrica on Instagram — 50+ real proofs.', active: true, sort_order: 1 },
+    { id: 2, question: 'Do you buy BTC and crypto?', answer: 'Yes — BTC, USDT, ETH and more. Send asset type and amount on WhatsApp for a live rate.', active: true, sort_order: 2 },
+    { id: 3, question: 'How fast is payment?', answer: 'Instant after confirmation. No delay, no story.', active: true, sort_order: 3 },
+    { id: 4, question: 'Do you accept PayPal and digital wallets?', answer: 'Yes — PayPal, CashApp, Chime, Apple Pay, Venmo, GCash, Revolut, Skrill, Neteller and more.', active: true, sort_order: 4 },
+    { id: 5, question: 'Which countries do you cover?', answer: 'EUR/SEPA, UK, US, Canada, Australia, Mexico, India and many more.', active: true, sort_order: 5 },
+  ],
+  services: [
+    { id: 1, name: 'Crypto', description: 'USDT, USDC, SOL, BTC, ETH and more.', icon: 'crypto', wa_message: 'Crypto', active: true, sort_order: 1 },
+    { id: 2, name: 'Gift Cards', description: 'Amazon, iTunes, Steam, Google Play and more.', icon: 'gift', wa_message: 'Gift Cards', active: true, sort_order: 2 },
+    { id: 3, name: 'CashApp', description: 'Send your CashApp balance. Receive naira to your bank.', icon: 'cashapp', wa_message: 'CashApp', active: true, sort_order: 3 },
+    { id: 4, name: 'EUR Payments', description: 'Got euros? We convert at competitive rates.', icon: 'eur', wa_message: 'EUR Payments', active: true, sort_order: 4 },
+    { id: 5, name: 'USA Transfers', description: 'Receive funds from the US fast.', icon: 'transfer', wa_message: 'USA Transfers', active: true, sort_order: 5 },
+    { id: 6, name: 'Wire Transfers', description: 'International wire payments processed fast.', icon: 'wire', wa_message: 'Wire Transfers', active: true, sort_order: 6 },
+  ],
+  admin_users: [],
+  _nextId: { reviews: 4, faqs: 6, services: 7 }
+};
 
-// API endpoints
-const IS_TESTNET = true; // Set to false for production
-const API_HOST = IS_TESTNET ? 'api-testnet.bybit.com' : 'api.bybit.com';
-
-// Fallback storage
-const FALLBACK_PATH = path.join(__dirname, 'last_bybit_rate.json');
-
-// Safety limits
-const MIN_LIMIT = 5000;  // Ignore ads with limits below 5k NGN
-const MAX_REASONABLE_PRICE = 2000; // Ignore suspicious prices above ₦2000/$
-const MIN_REASONABLE_PRICE = 1000; // Ignore suspicious prices below ₦1000/$
-const MIN_COMPLETION_RATE = 0.95; // Only trust advertisers with 95%+ completion
-
-/**
- * Generate Bybit API signature
- * @param {string} timestamp - Current timestamp
- * @param {string} queryString - Query parameters as string
- * @returns {string} HMAC signature
- */
-function generateSignature(timestamp, queryString) {
-  const paramStr = timestamp + API_KEY + queryString;
-  return crypto
-    .createHmac('sha256', API_SECRET)
-    .update(paramStr)
-    .digest('hex');
-}
-
-/**
- * Fetch P2P ads from Bybit with authentication
- * @param {string} side - '0' for BUY (get sellers), '1' for SELL (get buyers)
- * @returns {Promise<Array>}
- */
-function fetchBybitP2P(side) {
-  return new Promise((resolve, reject) => {
-    const timestamp = Date.now().toString();
-    const recvWindow = '5000';
-    
-    // Query parameters
-    const params = {
-      tokenId: 'USDT',
-      currencyId: 'NGN',
-      side: side,
-      size: '100'
-    };
-    
-    // Build query string
-    const queryString = Object.entries(params)
-      .map(([key, val]) => `${key}=${val}`)
-      .join('&');
-    
-    // Generate signature
-    const signature = generateSignature(timestamp, recvWindow + queryString);
-    
-    const options = {
-      hostname: API_HOST,
-      port: 443,
-      path: `/v5/market/get-p2p-ad?${queryString}`,
-      method: 'GET',
-      headers: {
-        'X-BAPI-API-KEY': API_KEY,
-        'X-BAPI-TIMESTAMP': timestamp,
-        'X-BAPI-SIGN': signature,
-        'X-BAPI-RECV-WINDOW': recvWindow,
-        'Content-Type': 'application/json',
-        'User-Agent': 'Gogreen-Rate-Engine/1.0'
-      },
-      timeout: 15000
-    };
-    
-    console.log(`🌐 Requesting Bybit ${side === '0' ? 'SELLERS' : 'BUYERS'} from ${API_HOST}...`);
-    console.log(`🔑 Using API Key: ${API_KEY.substring(0, 6)}...`);
-    
-    const req = https.request(options, (res) => {
-      let data = '';
-      
-      console.log('📡 Response status:', res.statusCode);
-      
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-      
-      res.on('end', () => {
-        try {
-          console.log('📄 Response preview:', data.substring(0, 300));
-          
-          const parsed = JSON.parse(data);
-          
-          // Check for API errors
-          if (parsed.retCode !== 0) {
-            reject(new Error(`Bybit API error (code ${parsed.retCode}): ${parsed.retMsg}`));
-            return;
-          }
-          
-          if (parsed.result && parsed.result.items) {
-            console.log(`✅ Received ${parsed.result.items.length} ads`);
-            resolve(parsed.result.items);
-          } else {
-            reject(new Error('Invalid API response structure'));
-          }
-        } catch (err) {
-          reject(new Error('JSON parse error: ' + err.message + ' | Response: ' + data.substring(0, 200)));
-        }
-      });
-    });
-    
-    req.on('error', (err) => {
-      reject(new Error('HTTPS request failed: ' + err.message));
-    });
-    
-    req.on('timeout', () => {
-      req.destroy();
-      reject(new Error('Request timeout after 15 seconds'));
-    });
-    
-    req.end();
-  });
-}
-
-/**
- * Apply your exact filtering logic with safety checks
- * @param {Array} ads - Raw ads from API
- * @param {number} tradeAmount - Your intended trade amount in NGN
- * @returns {Array} Filtered ads
- */
-function safeFilterAds(ads, tradeAmount = 50000) {
-  if (!Array.isArray(ads) || ads.length === 0) {
-    return [];
-  }
-  
-  return ads
-    // 1. Only eligible ads (has recent orders)
-    .filter(ad => ad.recentOrderNum && parseInt(ad.recentOrderNum) > 0)
-    
-    // 2. Only block advertisers (high completion rate >= 95%)
-    .filter(ad => ad.recentExecuteRate && parseFloat(ad.recentExecuteRate) >= MIN_COMPLETION_RATE)
-    
-    // 3. Amount must fit within ad limits
-    .filter(ad => {
-      const min = parseFloat(ad.minAmount || 0);
-      const max = parseFloat(ad.maxAmount || 0);
-      
-      // Ignore very low limits
-      if (min < MIN_LIMIT) return false;
-      
-      return tradeAmount >= min && tradeAmount <= max;
-    })
-    
-    // 4. Must have valid price within reasonable range
-    .filter(ad => {
-      const price = parseFloat(ad.price || 0);
-      return price >= MIN_REASONABLE_PRICE && price <= MAX_REASONABLE_PRICE;
-    })
-    
-    // 5. Sort by completed order number (highest first)
-    .sort((a, b) => parseInt(b.recentOrderNum) - parseInt(a.recentOrderNum));
-}
-
-/**
- * Calculate realistic average from top ads, ignoring outliers
- * @param {Array} ads - Filtered ads
- * @param {number} topN - Number of top ads to consider
- * @returns {number} Average price
- */
-function calculateAveragePrice(ads, topN = 10) {
-  if (!Array.isArray(ads) || ads.length === 0) {
-    return 0;
-  }
-  
-  // Take top N ads
-  const topAds = ads.slice(0, Math.min(topN, ads.length));
-  const prices = topAds.map(ad => parseFloat(ad.price)).filter(p => p > 0);
-  
-  if (prices.length === 0) return 0;
-  if (prices.length === 1) return prices[0];
-  
-  // Calculate mean
-  const mean = prices.reduce((a, b) => a + b, 0) / prices.length;
-  
-  // Calculate standard deviation
-  const variance = prices.reduce((sum, price) => sum + Math.pow(price - mean, 2), 0) / prices.length;
-  const stdDev = Math.sqrt(variance);
-  
-  // Remove outliers (prices > 2 standard deviations from mean)
-  const filtered = prices.filter(price => Math.abs(price - mean) <= 2 * stdDev);
-  
-  if (filtered.length === 0) return mean;
-  
-  // Return average of non-outliers
-  const average = filtered.reduce((a, b) => a + b, 0) / filtered.length;
-  return Math.round(average * 100) / 100;
-}
-
-/**
- * Load last saved rate (fallback)
- * @returns {Object|null}
- */
-function loadFallbackRate() {
+// ── Load / save ──
+function load() {
   try {
-    if (fs.existsSync(FALLBACK_PATH)) {
-      const data = fs.readFileSync(FALLBACK_PATH, 'utf8');
-      return JSON.parse(data);
+    if (fs.existsSync(DATA_PATH)) {
+      return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
     }
-  } catch (err) {
-    console.error('Failed to load fallback rate:', err.message);
+  } catch (e) {
+    console.error('DB load error:', e.message);
   }
-  return null;
+  return JSON.parse(JSON.stringify(DEFAULT));
 }
 
-/**
- * Save rate as fallback
- * @param {Object} rateData
- */
-function saveFallbackRate(rateData) {
+function save(data) {
   try {
-    fs.writeFileSync(FALLBACK_PATH, JSON.stringify(rateData, null, 2));
-  } catch (err) {
-    console.error('Failed to save fallback rate:', err.message);
+    fs.writeFileSync(DATA_PATH, JSON.stringify(data, null, 2));
+  } catch (e) {
+    console.error('DB save error:', e.message);
   }
 }
 
-/**
- * MAIN FUNCTION - Get Bybit P2P market rates
- * @param {number} tradeAmount - Your typical trade amount in NGN (default 50k)
- * @returns {Promise<Object>} Rate object
- */
-async function getBybitP2PRate(tradeAmount = 50000) {
+function getDB() {
+  return load();
+}
+
+// ── 🤖 BYBIT P2P RATE ENGINE ──
+async function updateRatesFromBybit() {
+  const data = load();
+  
+  // Check if auto rate is enabled
+  if (data.settings.auto_enabled && data.settings.auto_enabled.value === '0') {
+    console.log('🤖 Auto rate disabled, skipping Bybit update');
+    return;
+  }
+  
+  console.log('🤖 Bybit P2P: Fetching real-time USDT/NGN rates...');
+  
+  data.settings.auto_scrape_status.value = 'fetching';
+  save(data);
+  
   try {
-    console.log('🔍 Fetching Bybit P2P rates for ₦' + tradeAmount.toLocaleString() + ' trades...');
-    console.log(`🌍 Environment: ${IS_TESTNET ? 'TESTNET' : 'PRODUCTION'}`);
+    // Fetch rates from Bybit P2P (50k NGN typical trade amount)
+    const rateData = await getBybitP2PRate(50000);
     
-    // Fetch both sides in parallel
-    const [sellersRaw, buyersRaw] = await Promise.all([
-      fetchBybitP2P('0'), // We buy USDT (from sellers)
-      fetchBybitP2P('1')  // We sell USDT (to buyers)
-    ]);
+    console.log('✅ Bybit P2P rates received');
+    console.log('📊 Market Buy Rate (baseline): ₦' + rateData.market_buy_rate);
+    console.log('📊 Market Sell Rate (reference): ₦' + rateData.market_sell_rate);
     
-    console.log(`📊 Fetched ${sellersRaw.length} sellers, ${buyersRaw.length} buyers`);
+    // Apply your spread settings
+    const buySpread = parseInt(data.settings.auto_buy_spread.value) || -30;
+    const sellSpread = parseInt(data.settings.auto_sell_spread.value) || 60;
     
-    // Filter ads with safety checks
-    const sellers = safeFilterAds(sellersRaw, tradeAmount);
-    const buyers = safeFilterAds(buyersRaw, tradeAmount);
+    // Use market buy rate as baseline for both (consistent base)
+    const ourBuyRate = Math.round(rateData.market_buy_rate + buySpread);   // Market - 30
+    const ourSellRate = Math.round(rateData.market_buy_rate + sellSpread); // Market + 60
     
-    console.log(`✅ After filtering: ${sellers.length} valid sellers, ${buyers.length} valid buyers`);
+    console.log('💰 Our Buy Rate (we buy from customers): ₦' + ourBuyRate + ' (market ' + buySpread + ')');
+    console.log('💰 Our Sell Rate (we sell to customers): ₦' + ourSellRate + ' (market +' + sellSpread + ')');
+    console.log('📈 Our Spread: ₦' + (ourSellRate - ourBuyRate));
     
-    if (sellers.length === 0 || buyers.length === 0) {
-      throw new Error('Not enough valid ads after filtering (need sellers and buyers)');
-    }
+    // Update database
+    const freshData = load();
+    freshData.settings.buy_rate.value = String(ourBuyRate);
+    freshData.settings.sell_rate.value = String(ourSellRate);
+    freshData.settings.auto_market_rate.value = String(rateData.market_buy_rate);
+    freshData.settings.auto_last_fetched.value = rateData.timestamp;
+    freshData.settings.auto_scrape_status.value = 'success';
     
-    // Calculate rates from top 10 ads each
-    const marketBuyRate = calculateAveragePrice(sellers, 10);  // You buy USDT at this rate
-    const marketSellRate = calculateAveragePrice(buyers, 10); // You sell USDT at this rate
-    
-    if (marketBuyRate === 0 || marketSellRate === 0) {
-      throw new Error('Calculated rate is zero - data quality issue');
-    }
-    
-    const result = {
-      market_buy_rate: Math.round(marketBuyRate),
-      market_sell_rate: Math.round(marketSellRate),
-      source: IS_TESTNET ? 'bybit_p2p_testnet' : 'bybit_p2p',
-      timestamp: new Date().toISOString(),
-      metadata: {
-        sellers_count: sellers.length,
-        buyers_count: buyers.length,
-        trade_amount: tradeAmount,
-        top_seller_price: sellers.length > 0 ? parseFloat(sellers[0].price) : null,
-        top_buyer_price: buyers.length > 0 ? parseFloat(buyers[0].price) : null,
-        environment: IS_TESTNET ? 'testnet' : 'production'
-      }
-    };
-    
-    // Save as fallback
-    saveFallbackRate(result);
-    
-    console.log(`💰 Market Buy Rate (you buy USDT): ₦${result.market_buy_rate}`);
-    console.log(`💰 Market Sell Rate (you sell USDT): ₦${result.market_sell_rate}`);
-    console.log(`📈 Market Spread: ₦${Math.abs(result.market_sell_rate - result.market_buy_rate)}`);
-    
-    return result;
+    save(freshData);
+    console.log('✅ Rates updated successfully from Bybit P2P!');
     
   } catch (err) {
-    console.error('❌ Bybit P2P fetch failed:', err.message);
+    console.error('❌ Bybit P2P update failed:', err.message);
     
-    // Try to use fallback
-    const fallback = loadFallbackRate();
-    
-    if (fallback) {
-      const ageMinutes = Math.round((Date.now() - new Date(fallback.timestamp).getTime()) / 60000);
-      console.warn(`⚠️ Using fallback rate from ${ageMinutes} minutes ago`);
-      
-      return {
-        market_buy_rate: fallback.market_buy_rate,
-        market_sell_rate: fallback.market_sell_rate,
-        source: 'bybit_p2p_fallback',
-        timestamp: new Date().toISOString(),
-        metadata: {
-          ...fallback.metadata,
-          fallback_age_minutes: ageMinutes,
-          original_timestamp: fallback.timestamp
-        }
-      };
-    }
-    
-    throw new Error('Bybit P2P failed and no fallback available: ' + err.message);
+    const freshData = load();
+    freshData.settings.auto_scrape_status.value = 'error';
+    save(freshData);
   }
 }
 
-// Export for use in your system
-module.exports = { getBybitP2PRate };
+// ── Init ──
+async function initDB() {
+  let data = load();
 
-// Allow direct testing: node bybit-p2p-rate.js
-if (require.main === module) {
-  getBybitP2PRate(50000)
-    .then(result => {
-      console.log('\n📋 Full Result:');
-      console.log(JSON.stringify(result, null, 2));
-      console.log('\n✅ SUCCESS! Bybit P2P rate engine is working!');
-    })
-    .catch(err => {
-      console.error('\n💥 Error:', err.message);
-      process.exit(1);
-    });
+  // Merge any missing default settings
+  for (const [key, val] of Object.entries(DEFAULT.settings)) {
+    if (!data.settings[key]) data.settings[key] = val;
+  }
+  if (!data._nextId) data._nextId = { ...DEFAULT._nextId };
+
+  // Seed admin if empty
+  if (!data.admin_users || data.admin_users.length === 0) {
+    const pass = process.env.ADMIN_PASS || 'gogreen2026';
+    const hash = await bcrypt.hash(pass, 12);
+    data.admin_users = [{ id: 1, username: 'admin', password_hash: hash }];
+    console.log('Admin created — user: admin  pass:', pass);
+  }
+
+  // Apply env overrides to rates
+  if (process.env.BUY_RATE)  data.settings.buy_rate.value  = process.env.BUY_RATE;
+  if (process.env.SELL_RATE) data.settings.sell_rate.value = process.env.SELL_RATE;
+  if (process.env.WA_NUMBER) data.settings.wa_number.value = process.env.WA_NUMBER;
+
+  save(data);
+  console.log('Database ready —', DATA_PATH);
+  
+  // 🤖 Start Bybit P2P rate engine with random intervals
+  console.log('🚀 Bybit P2P Rate Engine initialized - updating every 2-5 minutes (random)');
+  
+  /**
+   * Schedule next update with random interval between 2-5 minutes
+   */
+  function scheduleNextUpdate() {
+    // Random interval between 2 and 5 minutes (in milliseconds)
+    const minInterval = 2 * 60 * 1000;  // 2 minutes
+    const maxInterval = 5 * 60 * 1000;  // 5 minutes
+    const randomInterval = Math.floor(Math.random() * (maxInterval - minInterval + 1)) + minInterval;
+    
+    const nextUpdateMinutes = (randomInterval / 60000).toFixed(1);
+    console.log(`⏰ Next rate update in ${nextUpdateMinutes} minutes`);
+    
+    setTimeout(async () => {
+      await updateRatesFromBybit();
+      scheduleNextUpdate(); // Schedule the next one after this completes
+    }, randomInterval);
+  }
+  
+  // Run first update after 10 seconds (give server time to start)
+  setTimeout(async () => {
+    await updateRatesFromBybit();
+    scheduleNextUpdate(); // Start the random scheduling loop
+  }, 10000);
 }
+
+module.exports = { getDB, save, load, initDB };
